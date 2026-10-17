@@ -1434,7 +1434,13 @@ impl DebugAdapter {
         request: Option<&Request>,
         boot_info: &BootInfo,
     ) -> Result<()> {
-        self.prepare_boot_async(session_data, core_index, boot_info)
+        let backend = &mut session_data.backend;
+        let core_data = session_data
+            .core_data
+            .iter_mut()
+            .find(|c| c.core_index == core_index)
+            .ok_or_else(|| DebuggerError::Other(anyhow!("No core data for core {core_index}")))?;
+        self.prepare_boot_async(backend, core_data, boot_info)
             .await?;
 
         if let Some(request) = request {
@@ -1790,19 +1796,9 @@ impl DebugAdapter {
         &mut self,
         backend: &mut RpcBackend,
         core_data: &mut CoreData,
-    ) -> Result<CoreInformation> {
-        let core_index = core_data.core_index;
-        core_data.invalidate_stack_frame_cache();
-        let core_info: CoreInformation = backend
-            .reset_and_halt(core_index, Duration::from_millis(500))
+    ) -> Result<()> {
+        self.prepare_boot_async(backend, core_data, &BootInfo::Other)
             .await
-            .map_err(DebuggerError::ProbeRs)?;
-
-        Self::reapply_hw_breakpoints_after_reset(backend, core_data).await?;
-
-        core_data.last_known_status = CoreStatus::Unknown;
-        self.all_cores_halted = false;
-        Ok(core_info)
     }
 
     /// Start the loaded image, leaving the core halted at its entry.
@@ -1813,19 +1809,11 @@ impl DebugAdapter {
     /// the callers halt just before this runs.
     async fn prepare_boot_async(
         &mut self,
-        session_data: &mut SessionData,
-        core_index: usize,
+        backend: &mut RpcBackend,
+        core_data: &mut CoreData,
         boot_info: &BootInfo,
     ) -> Result<()> {
-        // Borrow the two fields separately, so the breakpoint helper below can
-        // take the backend mutably while it reads the core's breakpoints.
-        let backend = &mut session_data.backend;
-        let core_data = session_data
-            .core_data
-            .iter_mut()
-            .find(|c| c.core_index == core_index)
-            .ok_or_else(|| DebuggerError::Other(anyhow!("No core data for core {core_index}")))?;
-
+        let core_index = core_data.core_index;
         core_data.invalidate_stack_frame_cache();
 
         backend
@@ -1833,7 +1821,9 @@ impl DebugAdapter {
             .await
             .map_err(DebuggerError::ProbeRs)?;
 
-        Self::reapply_hw_breakpoints_after_reset(backend, core_data).await?;
+        if matches!(boot_info, BootInfo::Other) {
+            Self::reapply_hw_breakpoints_after_reset(backend, core_data).await?;
+        }
 
         core_data.last_known_status = CoreStatus::Unknown;
         self.all_cores_halted = false;
