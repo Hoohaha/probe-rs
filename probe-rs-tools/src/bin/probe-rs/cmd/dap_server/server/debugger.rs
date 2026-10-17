@@ -811,27 +811,29 @@ impl Debugger {
 
             let flash_new_binary = matches!(self.boot_info, BootInfo::FromRam { .. })
                 || match self.binary_timestamp {
-                Some(check_current_binary_timestamp) => match get_file_timestamp(&path_to_elf) {
-                    Some(new_binary_timestamp) => {
-                        if new_binary_timestamp > check_current_binary_timestamp {
-                            self.binary_timestamp = Some(new_binary_timestamp);
-                            true
-                        } else {
-                            false
+                    Some(check_current_binary_timestamp) => {
+                        match get_file_timestamp(&path_to_elf) {
+                            Some(new_binary_timestamp) => {
+                                if new_binary_timestamp > check_current_binary_timestamp {
+                                    self.binary_timestamp = Some(new_binary_timestamp);
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                            None => {
+                                tracing::warn!(
+                                    "Could not get timestamp for new binary. Assuming it is new."
+                                );
+                                true
+                            }
                         }
                     }
                     None => {
-                        tracing::warn!(
-                            "Could not get timestamp for new binary. Assuming it is new."
-                        );
+                        self.binary_timestamp = get_file_timestamp(&path_to_elf);
                         true
                     }
-                },
-                None => {
-                    self.binary_timestamp = get_file_timestamp(&path_to_elf);
-                    true
-                }
-            };
+                };
             if flash_new_binary {
                 // If there is a new binary as part of a restart, there are some key things that
                 // need to be 'reset' for things to work properly.

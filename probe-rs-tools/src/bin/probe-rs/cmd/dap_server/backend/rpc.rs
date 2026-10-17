@@ -899,13 +899,7 @@ impl RpcBackend {
         config: &FlashingConfig,
     ) -> Result<WireBootInfo, DebuggerError> {
         self.session_interface()
-            .build_flash_loader_resolved(
-                upload,
-                config.format_options.clone(),
-                None,
-                false,
-                None,
-            )
+            .build_flash_loader_resolved(upload, config.format_options.clone(), None, false, None)
             .await
             .map(|result| result.boot_info)
             .map_err(|e| DebuggerError::Other(anyhow::anyhow!(e)))

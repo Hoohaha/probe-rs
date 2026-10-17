@@ -1440,7 +1440,8 @@ impl DebugAdapter {
             .iter_mut()
             .find(|c| c.core_index == core_index)
             .ok_or_else(|| DebuggerError::Other(anyhow!("No core data for core {core_index}")))?;
-        self.prepare_boot_async(backend, core_data, boot_info).await?;
+        self.prepare_boot_async(backend, core_data, boot_info)
+            .await?;
 
         if let Some(request) = request {
             if !self.halt_after_reset {
