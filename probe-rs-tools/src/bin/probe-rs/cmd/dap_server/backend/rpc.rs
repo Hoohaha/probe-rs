@@ -892,6 +892,25 @@ impl RpcBackend {
         Ok(boot_info)
     }
 
+    /// Determine how `upload` wants to be started without writing it.
+    pub(crate) async fn boot_info_resolved(
+        &self,
+        upload: &ResolvedUpload,
+        config: &FlashingConfig,
+    ) -> Result<WireBootInfo, DebuggerError> {
+        self.session_interface()
+            .build_flash_loader_resolved(
+                upload,
+                config.format_options.clone(),
+                None,
+                false,
+                None,
+            )
+            .await
+            .map(|result| result.boot_info)
+            .map_err(|e| DebuggerError::Other(anyhow::anyhow!(e)))
+    }
+
     /// Start the image described by `boot_info` on `core_index`, leaving the
     /// core halted.
     pub(crate) async fn prepare_boot(

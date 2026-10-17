@@ -721,6 +721,23 @@ impl Debugger {
                     .as_deref()
                     .and_then(get_file_timestamp);
 
+                if let Some(path_to_elf) = &target_core_config.program_binary {
+                    let upload = session_data
+                        .backend
+                        .session_interface()
+                        .resolve_upload(path_to_elf)
+                        .await
+                        .map_err(|error| {
+                            DebuggerError::Other(anyhow!(
+                                "Failed to resolve program binary upload: {error}"
+                            ))
+                        })?;
+                    self.boot_info = session_data
+                        .backend
+                        .boot_info_resolved(&upload, &self.config.flashing_config)
+                        .await?;
+                }
+
                 // The program that ran before the launch left an RTT control
                 // block in RAM. A download by another tool does not clear it,
                 // thus the debugger can attach to the stale block before the
@@ -792,7 +809,8 @@ impl Debugger {
                 )));
             };
 
-            let flash_new_binary = match self.binary_timestamp {
+            let flash_new_binary = matches!(self.boot_info, BootInfo::FromRam { .. })
+                || match self.binary_timestamp {
                 Some(check_current_binary_timestamp) => match get_file_timestamp(&path_to_elf) {
                     Some(new_binary_timestamp) => {
                         if new_binary_timestamp > check_current_binary_timestamp {
